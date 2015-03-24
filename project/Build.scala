@@ -21,7 +21,7 @@ object ScaldingBuild extends Build {
   def isScala210x(scalaVersion: String) = scalaBinaryVersion(scalaVersion) == "2.10"
 
   val scalaTestVersion = "2.2.2"
-  val scalaCheckVersion = "1.11.5"
+  val scalaCheckVersion = "1.12.1"
   val hadoopVersion = "1.2.1"
   val algebirdVersion = "0.9.0"
   val bijectionVersion = "0.7.2"
@@ -39,6 +39,8 @@ object ScaldingBuild extends Build {
   val cascadingAvroVersion = "2.1.2"
   val avroVersion = "1.7.4"
   val json4SVersion = "3.2.11"
+  val scroogeVersion = "3.17.0"
+  val kafkaVersion = "0.8.2.1"
 
   val printDependencyClasspath = taskKey[Unit]("Prints location of the dependencies")
 
@@ -84,6 +86,8 @@ object ScaldingBuild extends Build {
     concurrentRestrictions in Global := Seq(
       Tags.limitAll(1)
     ),
+
+    test in assembly := {},
 
     parallelExecution in Test := false,
 
@@ -201,7 +205,8 @@ object ScaldingBuild extends Build {
     scaldingJdbc,
     scaldingHadoopTest,
     scaldingMacros,
-    maple
+    maple,
+    executionTutorial
   )
 
   lazy val formattingPreferences = {
@@ -249,13 +254,19 @@ object ScaldingBuild extends Build {
       "cascading" % "cascading-hadoop" % cascadingVersion,
       "com.twitter" %% "chill" % chillVersion,
       "com.twitter" % "chill-hadoop" % chillVersion,
+      "com.twitter" %% "chill-algebird" % chillVersion,
       "com.twitter" % "chill-java" % chillVersion,
       "com.twitter" %% "bijection-core" % bijectionVersion,
       "com.twitter" %% "algebird-core" % algebirdVersion,
       "com.twitter" %% "algebird-test" % algebirdVersion % "test",
       "org.apache.hadoop" % "hadoop-core" % hadoopVersion % "provided",
       "org.slf4j" % "slf4j-api" % slf4jVersion,
-      "org.slf4j" % "slf4j-log4j12" % slf4jVersion % "provided"
+      "org.slf4j" % "slf4j-log4j12" % slf4jVersion % "provided",
+      "org.apache.kafka" % "kafka_".concat(scalaVersion.value.take(4)) % kafkaVersion excludeAll(
+        ExclusionRule(organization = "io.netty"),
+        ExclusionRule(organization = "org.slf4j"),
+        ExclusionRule(organization = "jline")
+      )
     )
   ).dependsOn(scaldingArgs, scaldingDate, maple)
 
@@ -273,10 +284,12 @@ object ScaldingBuild extends Build {
       "com.hadoop.gplcompression" % "hadoop-lzo" % hadoopLzoVersion,
       // TODO: split this out into scalding-thrift
       "org.apache.thrift" % "libthrift" % thriftVersion,
+      // TODO: split this out into a scalding-scrooge
+      "com.twitter" %% "scrooge-serializer" % scroogeVersion % "provided",
       "org.slf4j" % "slf4j-api" % slf4jVersion,
       "org.slf4j" % "slf4j-log4j12" % slf4jVersion % "provided"
     )
-  ).dependsOn(scaldingArgs, scaldingDate, scaldingCore)
+  ).dependsOn(scaldingArgs, scaldingDate, scaldingCore, scaldingHadoopTest % "test")
 
   lazy val scaldingAvro = module("avro").settings(
     libraryDependencies ++= Seq(
@@ -430,4 +443,21 @@ object ScaldingBuild extends Build {
     )
     }
   )
+
+  lazy val executionTutorial = Project(
+    id = "execution-tutorial",
+    base = file("tutorial/execution-tutorial"),
+    settings = sharedSettings
+  ).settings(
+    name := "execution-tutorial",
+    libraryDependencies <++= (scalaVersion) { scalaVersion => Seq(
+      "org.scala-lang" % "scala-library" % scalaVersion,
+      "org.scala-lang" % "scala-reflect" % scalaVersion,
+      "org.apache.hadoop" % "hadoop-core" % hadoopVersion,
+      "org.slf4j" % "slf4j-api" % slf4jVersion,
+      "org.slf4j" % "slf4j-log4j12" % slf4jVersion,
+      "cascading" % "cascading-hadoop" % cascadingVersion
+    )
+    }
+  ).dependsOn(scaldingCore)
 }
